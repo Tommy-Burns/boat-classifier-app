@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Annotation Tool</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Poppins:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #f4f4f6;
+    --bg2: #ffffff;
+    --bg3: #ebebef;
+    --border: #d4d4de;
+    --border2: #c0c0d0;
+    --text: #1a1a2e;
+    --text2: #5a5a78;
+    --text3: #9090a8;
+    --accent: #5050ee;
+    --accent2: #3535bb;
+    --success: #16a34a;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --mono: 'Poppins', monospace;
+    --sans: 'Poppins', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* Layout */
+  #app { display: grid; grid-template-rows: 44px 1fr; grid-template-columns: 220px 1fr 240px; height: 100vh; }
+  #topbar { grid-column: 1 / -1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0; padding: 0; z-index: 10; }
+  #left-panel { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  #canvas-area { position: relative; overflow: hidden; background: #e8e8f0; }
+  #right-panel { background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Topbar */
+  .tb-logo { padding: 0 16px; font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--accent); letter-spacing: 0.05em; border-right: 1px solid var(--border); height: 44px; display: flex; align-items: center; }
+  .tb-btn { height: 44px; padding: 0 14px; border: none; background: none; color: var(--text2); cursor: pointer; font-family: var(--sans); font-size: 12px; display: flex; align-items: center; gap: 6px; border-right: 1px solid var(--border); transition: color .15s, background .15s; white-space: nowrap; }
+  .tb-btn:hover { background: var(--bg3); color: var(--text); }
+  .tb-btn.active { color: var(--accent); background: rgba(108,108,255,.08); }
+  .tb-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .tb-sep { flex: 1; }
+  .tb-status { padding: 0 16px; font-family: var(--mono); font-size: 11px; color: var(--text3); }
+
+  /* Panel sections */
+  .panel-head { padding: 10px 12px; font-size: 10px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
+  .panel-head button { background: none; border: 1px solid var(--border2); border-radius: 4px; color: var(--text2); cursor: pointer; padding: 2px 7px; font-size: 11px; font-family: var(--sans); transition: all .15s; }
+  .panel-head button:hover { background: var(--bg3); color: var(--text); border-color: var(--accent); }
+  .panel-scroll { flex: 1; overflow-y: auto; }
+  .panel-scroll::-webkit-scrollbar { width: 4px; } .panel-scroll::-webkit-scrollbar-track { background: transparent; } .panel-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Tool buttons */
+  .tool-group { padding: 8px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--border); }
+  .tool-btn { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; cursor: pointer; border: none; background: none; color: var(--text2); font-family: var(--sans); font-size: 12px; width: 100%; text-align: left; transition: all .15s; }
+  .tool-btn:hover { background: var(--bg3); color: var(--text); }
+  .tool-btn.active { background: rgba(108,108,255,.12); color: var(--accent); }
+  .tool-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .kbd { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-left: auto; background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+
+  /* Class items */
+  .class-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; }
+  .class-item:hover { background: var(--bg3); }
+  .class-item.active { background: rgba(108,108,255,.08); }
+  .class-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .class-name { flex: 1; font-size: 12px; color: var(--text); }
+  .class-count { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .class-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+  .class-item:hover .class-actions { opacity: 1; }
+  .class-actions button { background: none; border: none; cursor: pointer; color: var(--text3); padding: 2px; border-radius: 3px; display: flex; }
+  .class-actions button:hover { color: var(--text); background: var(--bg2); }
+
+  /* Segment list */
+  .seg-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; }
+  .seg-item:hover { background: var(--bg3); }
+  .seg-item.selected { background: rgba(108,108,255,.1); border-left: 2px solid var(--accent); }
+  .seg-color { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .seg-info { flex: 1; min-width: 0; }
+  .seg-id { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .seg-class { font-size: 12px; color: var(--text); }
+  .seg-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+  .seg-item:hover .seg-actions { opacity: 1; }
+  .seg-actions button { background: none; border: none; cursor: pointer; color: var(--text3); padding: 3px; border-radius: 3px; }
+  .seg-actions button:hover { color: var(--danger); }
+  .seg-vis { cursor: pointer; color: var(--text3); padding: 3px; }
+
+  /* Properties panel */
+  .prop-row { display: flex; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--border); gap: 8px; }
+  .prop-label { font-size: 11px; color: var(--text3); width: 80px; flex-shrink: 0; }
+  .prop-value { font-size: 12px; color: var(--text); font-family: var(--mono); }
+  .prop-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+
+  /* Canvas tools overlay */
+  #canvas-tools { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
+  #zoom-info { position: absolute; bottom: 10px; left: 10px; font-family: var(--mono); font-size: 11px; color: var(--text3); background: var(--bg2); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; z-index: 5; }
+  #coords-info { position: absolute; bottom: 10px; right: 10px; font-family: var(--mono); font-size: 11px; color: var(--text3); background: var(--bg2); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; z-index: 5; }
+
+  /* Canvas */
+  #main-canvas { display: block; cursor: crosshair; }
+
+  /* Modal */
+  .modal-overlay { position: absolute; inset: 0; background: rgba(100,100,120,.45); z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 24px; width: 340px; }
+  .modal h3 { font-size: 14px; font-weight: 500; margin-bottom: 16px; color: var(--text); }
+  .modal input, .modal select { width: 100%; padding: 8px 10px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-family: var(--sans); font-size: 13px; margin-bottom: 10px; outline: none; }
+  .modal input:focus, .modal select:focus { border-color: var(--accent); }
+  .modal-row { display: flex; gap: 8px; margin-top: 4px; }
+  .modal-btn { flex: 1; padding: 8px; border-radius: 6px; cursor: pointer; font-family: var(--sans); font-size: 13px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); transition: all .15s; }
+  .modal-btn:hover { background: var(--bg); color: var(--text); }
+  .modal-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .modal-btn.primary:hover { background: var(--accent2); }
+  .color-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform .1s; }
+  .color-swatch:hover { transform: scale(1.15); }
+  .color-swatch.selected { border-color: #fff; }
+
+  /* Notification */
+  #notif { position: absolute; top: 54px; right: 12px; z-index: 200; display: flex; flex-direction: column; gap: 6px; }
+  .notif-item { background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; font-size: 12px; color: var(--text); min-width: 200px; animation: slideIn .2s ease; }
+  .notif-item.success { border-left: 3px solid var(--success); }
+  .notif-item.error { border-left: 3px solid var(--danger); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* Upload zone */
+  #upload-zone { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 3; }
+  #upload-zone.visible { display: flex; }
+  #upload-zone .uz-inner { border: 1px dashed var(--border2); border-radius: 12px; padding: 40px 60px; text-align: center; background: var(--bg2); }
+  #upload-zone h3 { font-size: 15px; font-weight: 400; color: var(--text2); margin-bottom: 8px; }
+  #upload-zone p { font-size: 12px; color: var(--text3); }
+  #upload-zone .uz-btn { margin-top: 16px; padding: 8px 20px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: var(--sans); font-size: 13px; }
+
+  /* Segmentation loading */
+  #seg-loading { position: absolute; inset: 0; background: rgba(240,240,246,.85); z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  #seg-loading.visible { display: flex; }
+  .spinner { width: 32px; height: 32px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #seg-loading p { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+
+  /* Import GeoJSON button */
+  .import-drop { border: 1px dashed var(--border2); border-radius: 6px; padding: 12px; text-align: center; margin: 8px; cursor: pointer; transition: all .15s; color: var(--text3); font-size: 12px; }
+  .import-drop:hover { border-color: var(--accent); color: var(--accent); background: rgba(108,108,255,.04); }
+
+  /* Export section */
+  .export-opt { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .export-opt span { font-size: 12px; color: var(--text2); }
+  .export-btn { padding: 4px 12px; background: none; border: 1px solid var(--border2); border-radius: 4px; color: var(--text2); cursor: pointer; font-size: 11px; font-family: var(--sans); transition: all .15s; }
+  .export-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Vertex handle */
+  .vertex-handle { cursor: move; }
+
+  /* Context menu */
+  #ctx-menu { position: absolute; background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 4px; z-index: 80; min-width: 160px; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+  .ctx-item { padding: 7px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px; }
+  .ctx-item:hover { background: var(--bg3); color: var(--text); }
+  .ctx-item.danger:hover { color: var(--danger); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Filter bar */
+  .filter-bar { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .filter-bar input { width: 100%; padding: 5px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--sans); font-size: 12px; outline: none; }
+  .filter-bar input:focus { border-color: var(--accent); }
+
+  .empty-state { padding: 24px 12px; text-align: center; color: var(--text3); font-size: 12px; }
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <div class="tb-logo">Annotate</div>
+
+    <button class="tb-btn" onclick="triggerImageUpload()" title="Open image">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+      Open image
+    </button>
+    <div id="refine-tb-tools" style="display:contents">
+      <button class="tb-btn" onclick="triggerGeoJSONImport()" title="Import GeoJSON segments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4 4 4-4M12 16V4"/></svg>
+        Import segments
+      </button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="undoAction()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+        Undo
+      </button>
+      <button class="tb-btn" onclick="redoAction()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/></svg>
+        Redo
+      </button>
+    </div>
+
+    <div class="tb-status" id="tb-status">No image loaded</div>
+  </div>
+
+  <!-- Left panel: tools + classes (Refine) / placeholder (Predict) -->
+  <div id="left-panel">
+    <div id="refine-left" style="display:contents">
+      <div class="panel-head">Tools</div>
+      <div class="tool-group">
+        <button class="tool-btn active" id="tool-select" onclick="setTool('select')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l14 9-7 1-4 7L5 3z"/></svg>
+          Select <span class="kbd">V</span>
+        </button>
+        <button class="tool-btn" id="tool-polygon" onclick="setTool('polygon')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5"/></svg>
+          Draw polygon <span class="kbd">P</span>
+        </button>
+        <button class="tool-btn" id="tool-edit" onclick="setTool('edit')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 4H4a2 2 0 00-2 2v14c0 1.1.9 2 2 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit vertices <span class="kbd">E</span>
+        </button>
+        <button class="tool-btn" id="tool-pan" onclick="setTool('pan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 9V5a2 2 0 012-2h.586a1 1 0 01.707.293L15 10m-5 9H6a2 2 0 01-2-2v-.586a1 1 0 01.293-.707L11 9"/><path d="M15 10v4m0-4h4m0 0v4m-4-4v4m4-4h-4"/></svg>
+          Pan / zoom <span class="kbd">H</span>
+        </button>
+      </div>
+      <div class="tool-group" style="border-bottom: 1px solid var(--border);">
+        <button class="tool-btn" onclick="mergeSelected()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="12" r="4"/><circle cx="16" cy="12" r="4"/></svg>
+          Merge selected
+        </button>
+        <button class="tool-btn" onclick="deleteSelected()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          Delete selected <span class="kbd">Del</span>
+        </button>
+
+      </div>
+
+      <div class="panel-head">
+        Classes
+        <button onclick="showAddClass()">+ add</button>
+      </div>
+      <div class="panel-scroll" id="class-list"></div>
+
+      <div class="import-drop" onclick="triggerGeoJSONImport()" id="import-drop">
+        Drop GeoJSON / click to import segments
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- Main canvas area -->
+  <div id="canvas-area">
+    <canvas id="main-canvas"></canvas>
+
+    <div id="upload-zone" class="visible">
+      <div class="uz-inner">
+        <h3>Open an image to begin</h3>
+        <p>PNG, JPG, TIFF — drag and drop or click</p>
+        <button class="uz-btn" onclick="triggerImageUpload()">Open image</button>
+      </div>
+    </div>
+
+    <div id="seg-loading">
+      <div class="spinner"></div>
+      <p id="seg-loading-msg">Loading…</p>
+    </div>
+
+    <div id="zoom-info">100%</div>
+    <div id="coords-info">x: — y: —</div>
+    <div id="notif"></div>
+    <div id="ctx-menu" style="display:none;"></div>
+  </div>
+
+  <!-- Right panel: segments + properties + export (Refine) / legend (Predict) -->
+  <div id="right-panel">
+    <div id="refine-panel" style="display:contents">
+      <div class="panel-head">Segments <span id="seg-count" style="color:var(--text3); font-family:var(--mono)">0</span></div>
+      <div class="filter-bar">
+        <input type="text" placeholder="Filter by class…" id="seg-filter" oninput="renderSegList()">
+      </div>
+      <div class="panel-scroll" id="seg-list" style="flex:1;"></div>
+
+      <div class="panel-head" style="margin-top:auto;">Properties</div>
+      <div id="properties-panel">
+        <div class="empty-state">Select a segment</div>
+      </div>
+
+      <div class="panel-head">Export</div>
+      <div class="export-opt">
+        <span>GeoJSON</span>
+        <button class="export-btn" onclick="exportGeoJSON()">Download</button>
+      </div>
+    </div>
+
+
+  </div>
+</div>
+
+<!-- Add/edit class modal -->
+<div id="modal-class" style="display:none; position:absolute; inset:0; z-index:150;">
+  <div class="modal-overlay" onclick="hideModal('modal-class')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h3 id="modal-class-title">Add class</h3>
+      <input type="text" id="cls-name-input" placeholder="Class name (e.g. Building)">
+      <input type="text" id="cls-desc-input" placeholder="Description (optional)">
+      <div class="color-row" id="cls-color-row"></div>
+      <div class="modal-row">
+        <button class="modal-btn" onclick="hideModal('modal-class')">Cancel</button>
+        <button class="modal-btn primary" onclick="saveClass()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assign class modal -->
+<div id="modal-assign" style="display:none; position:absolute; inset:0; z-index:150;">
+  <div class="modal-overlay" onclick="hideModal('modal-assign')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h3>Assign class</h3>
+      <select id="assign-class-select"></select>
+      <div class="modal-row">
+        <button class="modal-btn" onclick="hideModal('modal-assign')">Cancel</button>
+        <button class="modal-btn primary" onclick="confirmAssign()">Assign</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="image-input" accept="image/*,.tif,.tiff" style="display:none" onchange="loadImage(event)">
+<input type="file" id="geojson-input" accept=".geojson,.json" style="display:none" onchange="importGeoJSON(event)">
+
+<script>
+//  State
+const S = {
+  image: null,          // HTMLImageElement
+  imageName: '',
+  imageW: 0, imageH: 0,
+  scale: 1, origW: 0, origH: 0,
+  // viewport
+  panX: 0, panY: 0, zoom: 1,
+  // segments: array of {id, geometry: [[x,y],...], classId, visible, source, confidence}
+  segments: [],
+  // classes
+  classes: [
+    { id: 'boat',  name: 'Boat',       color: '#06b6d4' },
+    { id: 'cls_1', name: 'Building',   color: '#6c6cff' },
+    { id: 'cls_2', name: 'Road',       color: '#f59e0b' },
+  ],
+  // tools
+  tool: 'select',
+  // drawing state
+  drawing: false,
+  drawPoints: [],
+  // undo stack
+  history: [], future: [],
+  // edit vertex
+  editSeg: null, draggingVertex: null,
+  // pan state
+  panning: false, panStart: null,
+  // selection
+  selectedIds: new Set(),
+  // class modal
+  editingClassId: null,
+  selectedColor: '#6c6cff',
+  // assign
+  assigningSegId: null,
+  // counter
+  segCounter: 0,
+  // hover
+  hoveredId: null,
+  // active tab
+  activeTab: 'refine',
+};
+
+const PALETTE = ['#6c6cff','#f59e0b','#22c55e','#38bdf8','#ef4444','#a855f7','#f97316','#06b6d4','#84cc16','#ec4899','#14b8a6','#f43f5e'];
+
+//  Canvas setup
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const area = document.getElementById('canvas-area');
+
+function resizeCanvas() {
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
+  render();
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+//  Coordinate transforms
+function worldToCanvas(wx, wy) {
+  return [wx * S.zoom + S.panX, wy * S.zoom + S.panY];
+}
+function canvasToWorld(cx, cy) {
+  return [(cx - S.panX) / S.zoom, (cy - S.panY) / S.zoom];
+}
+
+//  Render
+function render() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // background grid
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#16161c';
+  ctx.lineWidth = 1;
+  const gs = 40 * S.zoom;
+  const ox = S.panX % gs, oy = S.panY % gs;
+  for (let x = ox; x < W; x += gs) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = oy; y < H; y += gs) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // image
+  if (S.image) {
+    const [ix, iy] = worldToCanvas(0, 0);
+    ctx.drawImage(S.image, ix, iy, S.imageW * S.zoom, S.imageH * S.zoom);
+  }
+
+  // segments
+  const segsToRender = S.segments;
+  for (const seg of segsToRender) {
+    if (!seg.visible || seg.geometry.length < 2) continue;
+    const cls = S.classes.find(c => c.id === seg.classId);
+    const color = cls ? cls.color : '#888888';
+    const isSelected = S.selectedIds.has(seg.id);
+    const isHovered = S.hoveredId === seg.id;
+
+    ctx.beginPath();
+    const [sx, sy] = worldToCanvas(seg.geometry[0][0], seg.geometry[0][1]);
+    ctx.moveTo(sx, sy);
+    for (let i = 1; i < seg.geometry.length; i++) {
+      const [px, py] = worldToCanvas(seg.geometry[i][0], seg.geometry[i][1]);
+      ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+
+    ctx.fillStyle = hexAlpha(color, isSelected ? 0.45 : isHovered ? 0.35 : 0.25);
+    ctx.fill();
+    ctx.strokeStyle = isSelected ? '#ffffff' : isHovered ? color : hexAlpha(color, 0.8);
+    ctx.lineWidth = isSelected ? 2 : 1.5;
+    ctx.stroke();
+
+    // label
+    if (cls && S.zoom > 0.5) {
+      const cx = seg.geometry.reduce((s,p) => s + p[0], 0) / seg.geometry.length;
+      const cy = seg.geometry.reduce((s,p) => s + p[1], 0) / seg.geometry.length;
+      const [lx, ly] = worldToCanvas(cx, cy);
+      ctx.font = `${Math.max(10, 11 * S.zoom)}px IBM Plex Sans, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(cls.name, lx, ly + 4);
+    }
+
+    // vertex handles (edit mode)
+    if (S.tool === 'edit' && (isSelected || S.editSeg === seg.id)) {
+      for (let i = 0; i < seg.geometry.length; i++) {
+        const [vx, vy] = worldToCanvas(seg.geometry[i][0], seg.geometry[i][1]);
+        ctx.beginPath();
+        ctx.arc(vx, vy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = i === S.draggingVertex ? '#fff' : color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // in-progress drawing
+  if (S.drawing && S.drawPoints.length > 0) {
+    ctx.beginPath();
+    const [fx, fy] = worldToCanvas(S.drawPoints[0][0], S.drawPoints[0][1]);
+    ctx.moveTo(fx, fy);
+    for (let i = 1; i < S.drawPoints.length; i++) {
+      const [px, py] = worldToCanvas(S.drawPoints[i][0], S.drawPoints[i][1]);
+      ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = '#6c6cff';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // start node hint
+    const [sx2, sy2] = worldToCanvas(S.drawPoints[0][0], S.drawPoints[0][1]);
+    ctx.beginPath();
+    ctx.arc(sx2, sy2, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#6c6cff';
+    ctx.fill();
+
+    // vertices
+    for (const [px, py] of S.drawPoints) {
+      const [cx2, cy2] = worldToCanvas(px, py);
+      ctx.beginPath();
+      ctx.arc(cx2, cy2, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    }
+  }
+}
+
+function hexAlpha(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+//  Tool management
+function setTool(t) {
+  S.tool = t;
+  S.drawing = false; S.drawPoints = [];
+  S.draggingVertex = null; S.editSeg = null;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('tool-' + t);
+  if (btn) btn.classList.add('active');
+  canvas.style.cursor = t === 'pan' ? 'grab' : t === 'polygon' ? 'crosshair' : 'default';
+  render();
+}
+
+//  Mouse events
+let mouseDownPos = null;
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 1) { S.panning = true; S.panStart = [e.clientX - S.panX, e.clientY - S.panY]; return; }
+  mouseDownPos = [e.clientX, e.clientY];
+  const [wx, wy] = canvasToWorld(e.offsetX, e.offsetY);
+
+  if (S.tool === 'pan') {
+    S.panning = true;
+    S.panStart = [e.clientX - S.panX, e.clientY - S.panY];
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
+  if (S.tool === 'edit') {
+    // find closest vertex
+    let best = null, bestDist = 10 / S.zoom;
+    for (const seg of S.segments) {
+      if (!S.selectedIds.has(seg.id)) continue;
+      for (let i = 0; i < seg.geometry.length; i++) {
+        const d = dist(seg.geometry[i][0], seg.geometry[i][1], wx, wy);
+        if (d < bestDist) { best = { seg, idx: i }; bestDist = d; }
+      }
+    }
+    if (best) {
+      S.editSeg = best.seg.id;
+      S.draggingVertex = best.idx;
+    }
+    return;
+  }
+
+  if (S.tool === 'polygon') {
+    if (!S.drawing) {
+      S.drawing = true;
+      S.drawPoints = [[wx, wy]];
+    } else {
+      // close if near start
+      const d = dist(wx, wy, S.drawPoints[0][0], S.drawPoints[0][1]);
+      if (d < 12 / S.zoom && S.drawPoints.length >= 3) {
+        finishPolygon();
+      } else {
+        S.drawPoints.push([wx, wy]);
+      }
+    }
+    render();
+    return;
+  }
+
+  if (S.tool === 'select') {
+    const hit = hitTest(wx, wy);
+    if (hit) {
+      if (e.shiftKey) {
+        if (S.selectedIds.has(hit.id)) S.selectedIds.delete(hit.id);
+        else S.selectedIds.add(hit.id);
+      } else {
+        S.selectedIds = new Set([hit.id]);
+      }
+    } else if (!e.shiftKey) {
+      S.selectedIds.clear();
+    }
+    renderSegList();
+    renderProperties();
+    render();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const [wx, wy] = canvasToWorld(e.offsetX, e.offsetY);
+  document.getElementById('coords-info').textContent = `x: ${Math.round(wx)}  y: ${Math.round(wy)}`;
+
+  if (S.panning) {
+    S.panX = e.clientX - S.panStart[0];
+    S.panY = e.clientY - S.panStart[1];
+    render(); return;
+  }
+
+  if (S.tool === 'edit' && S.draggingVertex !== null && S.editSeg) {
+    pushHistory();
+    const seg = S.segments.find(s => s.id === S.editSeg);
+    if (seg) { seg.geometry[S.draggingVertex] = [wx, wy]; render(); }
+    return;
+  }
+
+  if (S.drawing && S.drawPoints.length > 0) {
+    S.drawPoints[S.drawPoints.length - 1] = [wx, wy];
+    if (S.tool === 'polygon') {
+      // keep last as cursor ghost
+    }
+    render(); return;
+  }
+
+  // hover
+  const hit = hitTest(wx, wy);
+  const newHover = hit ? hit.id : null;
+  if (newHover !== S.hoveredId) { S.hoveredId = newHover; render(); }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (S.panning) {
+    S.panning = false;
+    canvas.style.cursor = S.tool === 'pan' ? 'grab' : 'default';
+  }
+  if (S.draggingVertex !== null) {
+    S.draggingVertex = null;
+    renderSegList();
+  }
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const mx = e.offsetX, my = e.offsetY;
+  S.panX = mx - (mx - S.panX) * factor;
+  S.panY = my - (my - S.panY) * factor;
+  S.zoom *= factor;
+  S.zoom = Math.max(0.05, Math.min(40, S.zoom));
+  document.getElementById('zoom-info').textContent = Math.round(S.zoom * 100) + '%';
+  render();
+}, { passive: false });
+
+canvas.addEventListener('dblclick', e => {
+  if (S.tool === 'polygon' && S.drawing && S.drawPoints.length >= 3) finishPolygon();
+});
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (S.drawing) { S.drawing = false; S.drawPoints = []; render(); return; }
+  const [wx, wy] = canvasToWorld(e.offsetX, e.offsetY);
+  const hit = hitTest(wx, wy);
+  if (hit) {
+    if (!S.selectedIds.has(hit.id)) { S.selectedIds = new Set([hit.id]); renderSegList(); renderProperties(); render(); }
+    showContextMenu(e.clientX - area.getBoundingClientRect().left, e.clientY - area.getBoundingClientRect().top, hit.id);
+  }
+});
+
+document.addEventListener('click', () => { document.getElementById('ctx-menu').style.display = 'none'; });
+
+//  Keyboard
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  const k = e.key;
+  if (k === 'v' || k === 'V') setTool('select');
+  if (k === 'p' || k === 'P') setTool('polygon');
+  if (k === 'e' || k === 'E') setTool('edit');
+  if (k === 'h' || k === 'H') setTool('pan');
+  if (k === 'Delete' || k === 'Backspace') deleteSelected();
+  if (k === 'Escape') { S.drawing = false; S.drawPoints = []; S.selectedIds.clear(); renderSegList(); renderProperties(); render(); }
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.shiftKey ? redoAction() : undoAction(); }
+  if ((e.ctrlKey || e.metaKey) && k === 'y') redoAction();
+});
+
+//  Hit test
+function hitTest(wx, wy) {
+  for (let i = S.segments.length - 1; i >= 0; i--) {
+    const seg = S.segments[i];
+    if (!seg.visible) continue;
+    if (pointInPolygon(wx, wy, seg.geometry)) return seg;
+  }
+  return null;
+}
+
+function pointInPolygon(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function dist(ax, ay, bx, by) { return Math.sqrt((ax-bx)**2 + (ay-by)**2); }
+
+//  Polygon drawing
+function finishPolygon() {
+  if (S.drawPoints.length < 3) return;
+  const pts = S.drawPoints.slice(0, -1); // remove cursor ghost
+  pushHistory();
+  const seg = {
+    id: 'seg_' + (++S.segCounter),
+    geometry: pts,
+    classId: S.classes[0]?.id || null,
+    visible: true,
+    selected: false,
+    source: 'manual',
+    confidence: null,
+  };
+  S.segments.push(seg);
+  S.drawing = false; S.drawPoints = [];
+  S.selectedIds = new Set([seg.id]);
+  renderAll();
+  notify('Segment drawn. Assign a class.', 'success');
+}
+
+//  Image loading
+function triggerImageUpload() { document.getElementById('image-input').click(); }
+
+function loadImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  S.imageName = file.name;
+  const loading = document.getElementById('seg-loading');
+  document.getElementById('seg-loading-msg').textContent = 'Loading image…';
+  loading.classList.add('visible');
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    S.image = img;
+    S.imageW = img.naturalWidth;
+    S.imageH = img.naturalHeight;
+    S.origW = img.naturalWidth;
+    S.origH = img.naturalHeight;
+    S.scale = 1;
+    const scaleX = (canvas.width * 0.85) / img.naturalWidth;
+    const scaleY = (canvas.height * 0.85) / img.naturalHeight;
+    S.zoom = Math.min(scaleX, scaleY, 1);
+    S.panX = (canvas.width - img.naturalWidth * S.zoom) / 2;
+    S.panY = (canvas.height - img.naturalHeight * S.zoom) / 2;
+    document.getElementById('zoom-info').textContent = Math.round(S.zoom * 100) + '%';
+    document.getElementById('upload-zone').classList.remove('visible');
+    document.getElementById('tb-status').textContent = `${file.name}  ${img.naturalWidth}×${img.naturalHeight}`;
+    loading.classList.remove('visible');
+    render();
+    notify(`Image loaded: ${file.name}`, 'success');
+  };
+  img.onerror = () => {
+    loading.classList.remove('visible');
+    URL.revokeObjectURL(url);
+    notify('Failed to load image', 'error');
+  };
+  img.src = url;
+}
+
+//  GeoJSON import
+function triggerGeoJSONImport() { document.getElementById('geojson-input').click(); }
+
+function importGeoJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!S.image || !S.origH) {
+    notify('Load an image before importing segments', 'error');
+    e.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const gj = JSON.parse(ev.target.result);
+      const features = gj.type === 'FeatureCollection' ? gj.features : gj.type === 'Feature' ? [gj] : [];
+      if (!features.length) { notify('No features found in GeoJSON', 'error'); return; }
+      pushHistory();
+      let count = 0;
+      for (const f of features) {
+        if (!f.geometry) continue;
+        let pts = [];
+        if (f.geometry.type === 'Polygon') pts = f.geometry.coordinates[0].map(c => [c[0] / S.scale, (S.origH - c[1]) / S.scale]);
+        else if (f.geometry.type === 'MultiPolygon') pts = f.geometry.coordinates[0][0].map(c => [c[0] / S.scale, (S.origH - c[1]) / S.scale]);
+        if (pts.length < 3) continue;
+
+        // match class by name
+        const cn = f.properties?.class_name || f.properties?.label || f.properties?.category || '';
+        let cls = S.classes.find(c => c.name.toLowerCase() === cn.toLowerCase());
+        if (!cls && cn) {
+          cls = { id: 'cls_' + Date.now() + Math.random(), name: cn, color: PALETTE[S.classes.length % PALETTE.length] };
+          S.classes.push(cls);
+        }
+
+        S.segments.push({
+          id: f.id || 'seg_' + (++S.segCounter),
+          geometry: pts,
+          classId: cls?.id || null,
+          visible: true,
+          source: 'imported',
+          confidence: f.properties?.confidence || null,
+        });
+        count++;
+      }
+      renderAll();
+      notify(`Imported ${count} segments`, 'success');
+    } catch (err) {
+      notify('Failed to parse GeoJSON: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+//  Class management
+let _editingClassId = null;
+
+function showAddClass(id) {
+  _editingClassId = id || null;
+  const cls = id ? S.classes.find(c => c.id === id) : null;
+  document.getElementById('modal-class-title').textContent = cls ? 'Edit class' : 'Add class';
+  document.getElementById('cls-name-input').value = cls?.name || '';
+  document.getElementById('cls-desc-input').value = cls?.description || '';
+  S.selectedColor = cls?.color || PALETTE[S.classes.length % PALETTE.length];
+  renderColorPicker();
+  showModal('modal-class');
+  setTimeout(() => document.getElementById('cls-name-input').focus(), 50);
+}
+
+function renderColorPicker() {
+  const row = document.getElementById('cls-color-row');
+  row.innerHTML = PALETTE.map(c => `<div class="color-swatch${c===S.selectedColor?' selected':''}" style="background:${c}" onclick="selectColor('${c}')"></div>`).join('');
+}
+
+function selectColor(c) { S.selectedColor = c; renderColorPicker(); }
+
+function saveClass() {
+  const name = document.getElementById('cls-name-input').value.trim();
+  if (!name) { notify('Class name required', 'error'); return; }
+  if (_editingClassId) {
+    const cls = S.classes.find(c => c.id === _editingClassId);
+    if (cls) { cls.name = name; cls.color = S.selectedColor; cls.description = document.getElementById('cls-desc-input').value.trim(); }
+  } else {
+    S.classes.push({ id: 'cls_' + Date.now(), name, color: S.selectedColor });
+  }
+  hideModal('modal-class');
+  renderAll();
+}
+
+function deleteClass(id) {
+  if (!confirm('Delete this class? Segments will become unclassified.')) return;
+  S.classes = S.classes.filter(c => c.id !== id);
+  S.segments.forEach(s => { if (s.classId === id) s.classId = null; });
+  renderAll();
+}
+
+function renderClassList() {
+  const el = document.getElementById('class-list');
+  if (!S.classes.length) { el.innerHTML = '<div class="empty-state">No classes yet</div>'; return; }
+  el.innerHTML = S.classes.map(cls => {
+    const count = S.segments.filter(s => s.classId === cls.id).length;
+    return `<div class="class-item" onclick="filterByClass('${cls.id}')">
+      <div class="class-dot" style="background:${cls.color}"></div>
+      <div class="class-name">${esc(cls.name)}</div>
+      <div class="class-count">${count}</div>
+      <div class="class-actions">
+        <button onclick="event.stopPropagation();showAddClass('${cls.id}')" title="Edit">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14c0 1.1.9 2 2 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button onclick="event.stopPropagation();deleteClass('${cls.id}')" title="Delete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+//  Segment list
+function renderSegList() {
+  const el = document.getElementById('seg-list');
+  const filter = document.getElementById('seg-filter').value.toLowerCase();
+  const segs = S.segments.filter(s => {
+    if (!filter) return true;
+    const cls = S.classes.find(c => c.id === s.classId);
+    return (cls?.name || 'unlabeled').toLowerCase().includes(filter);
+  });
+  document.getElementById('seg-count').textContent = S.segments.length;
+  if (!segs.length) { el.innerHTML = '<div class="empty-state">No segments</div>'; return; }
+  el.innerHTML = segs.map(seg => {
+    const cls = S.classes.find(c => c.id === seg.classId);
+    const color = cls?.color || '#555';
+    const isSelected = S.selectedIds.has(seg.id);
+    return `<div class="seg-item${isSelected?' selected':''}" onclick="selectSegment('${seg.id}',event)">
+      <div class="seg-color" style="background:${color}"></div>
+      <div class="seg-info">
+        <div class="seg-id">${seg.id}</div>
+        <div class="seg-class">${cls?.name || '<i>unlabeled</i>'}</div>
+      </div>
+      <div class="seg-vis" onclick="event.stopPropagation();toggleVis('${seg.id}')" title="${seg.visible?'Hide':'Show'}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="${seg.visible?1:0.3}"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="seg-actions">
+        <button onclick="event.stopPropagation();showAssign('${seg.id}')" title="Assign class">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        </button>
+        <button onclick="event.stopPropagation();deleteSeg('${seg.id}')" title="Delete">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectSegment(id, e) {
+  if (e?.shiftKey) {
+    if (S.selectedIds.has(id)) S.selectedIds.delete(id); else S.selectedIds.add(id);
+  } else {
+    S.selectedIds = new Set([id]);
+  }
+  renderProperties();
+  render();
+}
+
+function toggleVis(id) {
+  const seg = S.segments.find(s => s.id === id);
+  if (seg) { seg.visible = !seg.visible; renderSegList(); render(); }
+}
+
+function deleteSeg(id) {
+  pushHistory();
+  S.segments = S.segments.filter(s => s.id !== id);
+  S.selectedIds.delete(id);
+  renderAll();
+}
+
+function filterByClass(clsId) {
+  document.getElementById('seg-filter').value = S.classes.find(c => c.id === clsId)?.name || '';
+  renderSegList();
+}
+
+//  Assign class
+let _assignSegId = null;
+
+function showAssign(segId) {
+  _assignSegId = segId;
+  const sel = document.getElementById('assign-class-select');
+  sel.innerHTML = '<option value="">— unlabeled —</option>' + S.classes.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const seg = S.segments.find(s => s.id === segId);
+  if (seg?.classId) sel.value = seg.classId;
+  showModal('modal-assign');
+}
+
+function confirmAssign() {
+  const val = document.getElementById('assign-class-select').value;
+  if (_assignSegId) {
+    pushHistory();
+    const seg = S.segments.find(s => s.id === _assignSegId);
+    if (seg) seg.classId = val || null;
+  } else {
+    // batch assign selected
+    pushHistory();
+    S.selectedIds.forEach(id => {
+      const seg = S.segments.find(s => s.id === id);
+      if (seg) seg.classId = val || null;
+    });
+  }
+  hideModal('modal-assign');
+  renderAll();
+}
+
+//  Properties panel
+function renderProperties() {
+  const el = document.getElementById('properties-panel');
+  if (S.selectedIds.size === 0) { el.innerHTML = '<div class="empty-state">Select a segment</div>'; return; }
+  if (S.selectedIds.size > 1) {
+    el.innerHTML = `
+      <div class="prop-row"><span class="prop-label">Selected</span><span class="prop-value">${S.selectedIds.size} segments</span></div>
+      <div class="prop-row" style="padding:10px 12px;">
+        <button onclick="showAssign(null)" style="width:100%;padding:7px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px;">Assign class to all</button>
+      </div>
+      <div class="prop-row" style="padding:10px 12px;">
+        <button onclick="mergeSelected()" style="width:100%;padding:7px;background:var(--bg3);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px;">Merge into one</button>
+      </div>`;
+    return;
+  }
+  const seg = S.segments.find(s => s.id === [...S.selectedIds][0]);
+  if (!seg) return;
+  const cls = S.classes.find(c => c.id === seg.classId);
+  el.innerHTML = `
+    <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value" style="font-size:10px;">${seg.id}</span></div>
+    <div class="prop-row"><span class="prop-label">Class</span>
+      <span class="prop-badge" style="background:${cls?cls.color+'22':'#33333380'};color:${cls?cls.color:'#888'}">${cls?.name||'unlabeled'}</span>
+    </div>
+    <div class="prop-row"><span class="prop-label">Vertices</span><span class="prop-value">${seg.geometry.length}</span></div>
+    <div class="prop-row"><span class="prop-label">Source</span><span class="prop-value">${seg.source||'manual'}</span></div>
+    ${seg.confidence !== null ? `<div class="prop-row"><span class="prop-label">Confidence</span><span class="prop-value">${(seg.confidence*100).toFixed(0)}%</span></div>` : ''}
+    <div class="prop-row" style="padding:10px 12px; flex-direction:column; gap:6px; align-items:stretch;">
+      <button onclick="showAssign('${seg.id}')" style="padding:7px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px;">Assign class</button>
+      <button onclick="setTool('edit');S.editSeg='${seg.id}'" style="padding:7px;background:var(--bg3);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px;">Edit vertices</button>
+      <button onclick="deleteSeg('${seg.id}')" style="padding:7px;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px;">Delete</button>
+    </div>`;
+}
+
+//  Context menu
+function showContextMenu(x, y, segId) {
+  const m = document.getElementById('ctx-menu');
+  m.innerHTML = `
+    <div class="ctx-item" onclick="showAssign('${segId}')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Assign class
+    </div>
+    <div class="ctx-item" onclick="setTool('edit')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14c0 1.1.9 2 2 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit vertices
+    </div>
+    <div class="ctx-sep"></div>
+    ${S.selectedIds.size > 1 ? `<div class="ctx-item" onclick="mergeSelected()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="12" r="4"/><circle cx="16" cy="12" r="4"/></svg>Merge selected</div>` : ''}
+    <div class="ctx-item danger" onclick="deleteSeg('${segId}')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+      Delete
+    </div>`;
+  m.style.display = 'block';
+  m.style.left = x + 'px';
+  m.style.top = y + 'px';
+}
+
+//  Segment operations
+function deleteSelected() {
+  if (!S.selectedIds.size) return;
+  pushHistory();
+  S.segments = S.segments.filter(s => !S.selectedIds.has(s.id));
+  S.selectedIds.clear();
+  renderAll();
+}
+
+function mergeSelected() {
+  if (S.selectedIds.size < 2) { notify('Select 2+ segments to merge', 'error'); return; }
+  pushHistory();
+  const toMerge = S.segments.filter(s => S.selectedIds.has(s.id));
+  // collect all points (union approximation — hull of all points)
+  const allPts = toMerge.flatMap(s => s.geometry);
+  const hull = convexHull(allPts);
+  const merged = {
+    id: 'seg_' + (++S.segCounter),
+    geometry: hull,
+    classId: toMerge[0].classId,
+    visible: true,
+    source: 'merged',
+    confidence: null,
+  };
+  S.segments = S.segments.filter(s => !S.selectedIds.has(s.id));
+  S.segments.push(merged);
+  S.selectedIds = new Set([merged.id]);
+  renderAll();
+  notify('Segments merged', 'success');
+}
+
+
+
+// Convex hull (gift wrapping)
+function convexHull(pts) {
+  if (pts.length < 3) return pts;
+  let start = pts.reduce((a,b) => b[0]<a[0]?b:a);
+  const hull = [start];
+  let cur = start;
+  while (true) {
+    let next = pts[0];
+    for (const p of pts) {
+      if (p === cur) continue;
+      const cross = (next[0]-cur[0])*(p[1]-cur[1]) - (next[1]-cur[1])*(p[0]-cur[0]);
+      if (cross < 0 || (cross === 0 && dist(...p,...cur) > dist(...next,...cur))) next = p;
+    }
+    if (next === start) break;
+    hull.push(next);
+    cur = next;
+    if (hull.length > pts.length) break;
+  }
+  return hull;
+}
+
+//  Undo / redo
+function pushHistory() {
+  S.history.push(JSON.stringify({ segments: S.segments, classes: S.classes }));
+  if (S.history.length > 50) S.history.shift();
+  S.future = [];
+}
+
+function undoAction() {
+  if (!S.history.length) return;
+  S.future.push(JSON.stringify({ segments: S.segments, classes: S.classes }));
+  const state = JSON.parse(S.history.pop());
+  S.segments = state.segments; S.classes = state.classes;
+  S.selectedIds.clear();
+  renderAll();
+  notify('Undo', 'success');
+}
+
+function redoAction() {
+  if (!S.future.length) return;
+  S.history.push(JSON.stringify({ segments: S.segments, classes: S.classes }));
+  const state = JSON.parse(S.future.pop());
+  S.segments = state.segments; S.classes = state.classes;
+  S.selectedIds.clear();
+  renderAll();
+  notify('Redo', 'success');
+}
+
+//  Export
+function buildGeoJSONExport() {
+  return {
+    type: 'FeatureCollection',
+    metadata: {
+      image: S.imageName,
+      image_width: S.origW || S.imageW,
+      image_height: S.origH || S.imageH,
+      class_registry: S.classes,
+      exported_at: new Date().toISOString(),
+      segment_count: S.segments.length,
+    },
+    features: S.segments.map(seg => {
+      const cls = S.classes.find(c => c.id === seg.classId);
+      return {
+        type: 'Feature',
+        id: seg.id,
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[...seg.geometry.map(p => [p[0] * S.scale, S.origH - p[1] * S.scale]), seg.geometry[0] ? [seg.geometry[0][0] * S.scale, S.origH - seg.geometry[0][1] * S.scale] : null].filter(Boolean)],
+        },
+        properties: {
+          class_id: seg.classId || null,
+          class_name: cls?.name || 'unlabeled',
+          color: cls?.color || null,
+          confidence: seg.confidence,
+          source: seg.source || 'manual',
+        },
+      };
+    }),
+  };
+}
+
+function exportGeoJSON() {
+  const data = buildGeoJSONExport();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/geo+json' });
+  downloadBlob(blob, (S.imageName.replace(/\.[^.]+$/, '') || 'annotations') + '.geojson');
+  notify('GeoJSON exported', 'success');
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+//  Modal helpers
+function showModal(id) { document.getElementById(id).style.display = 'block'; }
+function hideModal(id) { document.getElementById(id).style.display = 'none'; }
+
+//  Notifications
+function notify(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = 'notif-item' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('notif').appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+//  Drag & drop image
+area.addEventListener('dragover', e => { e.preventDefault(); });
+area.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/') || f.name.match(/\.tiff?$/i));
+  if (file) {
+    const dt = new DataTransfer(); dt.items.add(file);
+    document.getElementById('image-input').files = dt.files;
+    loadImage({ target: document.getElementById('image-input') });
+  }
+  const gj = [...e.dataTransfer.files].find(f => f.name.match(/\.geojson|\.json$/i));
+  if (gj) {
+    const dt = new DataTransfer(); dt.items.add(gj);
+    document.getElementById('geojson-input').files = dt.files;
+    importGeoJSON({ target: document.getElementById('geojson-input') });
+  }
+});
+
+
+
+//  Helpers
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderAll() {
+  renderClassList();
+  renderSegList();
+  renderProperties();
+  render();
+}
+
+//  Init
+renderAll();
+</script>
+</body>
+</html>
