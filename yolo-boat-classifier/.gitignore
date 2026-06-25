@@ -1,0 +1,40 @@
+# Model weights
+models/
+
+# Runtime data
+uploads/
+
+# runtime output
+output/
+
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Build / packaging artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment / local config
+.env
+.env.*
+*.local

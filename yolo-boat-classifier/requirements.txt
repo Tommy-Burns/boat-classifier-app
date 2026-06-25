@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+sahi
+ultralytics
+rasterio
+mercantile
+pyproj
+Pillow
+numpy
+opencv-python-headless

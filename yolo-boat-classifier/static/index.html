@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Boat Detection</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Poppins:wght@300;400;500&display=swap');
+  :root {
+    --ink:       #0d1117;
+    --surface:   #111827;
+    --panel:     #161d2e;
+    --border:    #1e2d45;
+    --accent:    #00d4ff;
+    --accent2:   #ff6b35;
+    --success:   #00c48c;
+    --warn:      #ffb800;
+    --error:     #ff4757;
+    --text:      #e2e8f0;
+    --text-muted:#718096;
+    --panel-w:   340px;
+    --mono: 'Poppins', monospace;
+    --sans: 'Poppins', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--surface); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+
+  
+  #panel { width: var(--panel-w); min-width: var(--panel-w); background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; }
+  #panel::-webkit-scrollbar { width: 4px; }
+  #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  #panel-header { padding: 22px 20px 14px; border-bottom: 1px solid var(--border); }
+  .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+  #panel-header h1 { font-size: 14px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+  #panel-header p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  #panel-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+  .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 9px; display: flex; align-items: center; gap: 6px; }
+  .req-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent2); display: inline-block; }
+  .req-dot.ok { background: var(--success); }
+
+  .upload-zone { border: 1.5px dashed var(--border); border-radius: 8px; padding: 16px 14px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,212,255,0.04); }
+  .upload-zone.filled { border-style: solid; border-color: rgba(0,196,140,0.4); background: rgba(0,196,140,0.03); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-zone .icon { font-size: 18px; margin-bottom: 5px; }
+  .upload-zone p { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .upload-zone .filename { margin-top: 7px; font-size: 11px; color: var(--success); font-family: var(--mono); word-break: break-all; }
+
+  .hint { font-size: 10px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; }
+
+  .btn { width: 100%; padding: 11px 16px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.2s, transform 0.1s; letter-spacing: 0.02em; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--accent); color: var(--ink); }
+  .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+  /* detection settings */
+  .settings { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .settings summary { list-style: none; cursor: pointer; padding: 11px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; }
+  .settings summary::-webkit-details-marker { display: none; }
+  .settings summary .chev { transition: transform 0.2s; }
+  .settings[open] summary .chev { transform: rotate(90deg); }
+  .settings-body { padding: 4px 13px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .field label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 5px; }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; }
+  input[type=number], select { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 8px; font-size: 12px; font-family: var(--mono); }
+  input[type=number]:focus, select:focus { outline: none; border-color: var(--accent); }
+  select[multiple] { font-family: var(--sans); padding: 4px; }
+  select[multiple] option { padding: 3px 6px; border-radius: 4px; }
+
+  input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: var(--border); cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); border: 2px solid var(--ink); cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); border: 2px solid var(--ink); cursor: pointer; }
+  .slider-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .slider-head .val { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 700; }
+
+  #status-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 13px; display: none; }
+  #status-card.visible { display: block; }
+  .status-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .status-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; }
+  .status-badge.queued  { background: rgba(255,184,0,0.15); color: var(--warn); }
+  .status-badge.running { background: rgba(0,212,255,0.15); color: var(--accent); }
+  .status-badge.done    { background: rgba(0,196,140,0.15); color: var(--success); }
+  .status-badge.error   { background: rgba(255,71,87,0.15); color: var(--error); }
+  .progress-text { font-size: 11px; color: var(--text-muted); font-family: var(--mono); word-break: break-word; }
+  .progress-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.4s; }
+  .progress-bar.indeterminate { width: 40%; animation: slide 1.2s infinite ease-in-out; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+
+  #results-section { display: none; }
+  #results-section.visible { display: block; }
+  .divider { height: 1px; background: var(--border); margin: 2px 0; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat-box { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 7px; padding: 11px 10px; text-align: center; }
+  .stat-box .val { font-size: 22px; font-weight: 700; color: var(--accent); font-family: var(--mono); line-height: 1; }
+  .stat-box .lbl { font-size: 10px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .list-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .list-controls select { flex: 1; }
+
+  /* layer controls */
+  .layer-controls { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.02); }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  .toggle-row span { font-size: 11px; color: var(--text); }
+  .switch { position: relative; width: 38px; height: 20px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .track { position: absolute; inset: 0; background: var(--border); border-radius: 20px; transition: 0.2s; }
+  .switch .track::before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; top: 3px; background: var(--text-muted); border-radius: 50%; transition: 0.2s; }
+  .switch input:checked + .track { background: rgba(0,212,255,0.35); }
+  .switch input:checked + .track::before { transform: translateX(18px); background: var(--accent); }
+
+  /* collapsible boat-list section — header matches .section-label styling */
+  .boatlist-header { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 9px; }
+  .boatlist-header:hover { color: var(--text); }
+  .boatlist-header .count { color: var(--accent); font-family: var(--mono); }
+  .boatlist-header .chev { transition: transform 0.2s; transform: rotate(90deg); }
+  .boatlist-section.collapsed .boatlist-header .chev { transform: rotate(0deg); }
+  .boatlist-body { overflow: hidden; max-height: 400px; transition: max-height 0.25s ease; }
+  .boatlist-section.collapsed .boatlist-body { max-height: 0; }
+  /* capped list with its own scroll so a long result can't blow out the sidebar */
+  #boat-list { display: flex; flex-direction: column; gap: 5px; max-height: 240px; overflow-y: auto; }
+  #boat-list::-webkit-scrollbar { width: 3px; }
+  #boat-list::-webkit-scrollbar-thumb { background: var(--border); }
+  .boat-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 11px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: border-color 0.15s, background 0.15s; font-size: 12px; }
+  .boat-item:hover, .boat-item.active { border-color: var(--accent); background: rgba(0,212,255,0.05); }
+  .boat-item .boat-id { font-family: var(--mono); font-size: 11px; display: flex; align-items: center; gap: 7px; }
+  .boat-item .swatch { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
+  .boat-item .boat-cls { color: var(--text-muted); font-size: 10px; }
+  .boat-item .conf { font-size: 11px; color: var(--text); font-family: var(--mono); }
+
+
+  #map-wrap { flex: 1; position: relative; }
+  #map { width: 100%; height: 100%; }
+  .leaflet-popup-content-wrapper { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: var(--text); }
+  .leaflet-popup-tip { background: var(--panel); }
+  .popup-inner { padding: 2px; min-width: 180px; }
+  .popup-title { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .popup-inner table { width: 100%; border-collapse: collapse; }
+  .popup-inner td { font-size: 11px; padding: 3px 0; vertical-align: top; }
+  .popup-inner td:first-child { color: var(--text-muted); width: 50%; font-family: var(--mono); }
+  .popup-inner td:last-child { color: var(--text); font-weight: 500; }
+
+  #map-badge { position: absolute; top: 16px; right: 16px; z-index: 999; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 9px 13px; font-size: 12px; color: var(--text-muted); display: none; }
+  #map-badge.visible { display: block; }
+  #map-badge span { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+
+  /* confidence legend */
+  .legend { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+  .legend .legend-title { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px; }
+  .legend .legend-bar { height: 9px; width: 150px; border-radius: 3px; background: linear-gradient(to right, rgb(255,0,0), rgb(255,255,0), rgb(0,255,0)); }
+  .legend .legend-scale { display: flex; justify-content: space-between; font-size: 10px; font-family: var(--mono); color: var(--text-muted); margin-top: 4px; }
+
+
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    #panel {
+      width: 100%; min-width: 0;
+      height: 50vh;
+      flex: 0 0 auto;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    #map-wrap { flex: 1 1 0; min-height: 240px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <div id="panel-header">
+    <div class="logo">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <rect width="26" height="26" rx="6" fill="rgba(0,212,255,0.1)"/>
+        <path d="M5 18l4-7 4 5 3-4 5 6H5z" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linejoin="round"/>
+        <circle cx="19" cy="8" r="2" fill="#ff6b35"/>
+      </svg>
+      <h1>Boat Detect</h1>
+    </div>
+  </div>
+
+  <div id="panel-body">
+
+    <!-- inference image -->
+    <div>
+      <div class="section-label"><span class="req-dot" id="dot-img"></span>Inference Image</div>
+      <div class="upload-zone" id="img-zone">
+        <input type="file" id="img-input" accept=".tif,.tiff"/>
+        <div class="icon">📡</div>
+        <p>Drop image or click to browse<br/><small>detection runs on this</small></p>
+        <div class="filename" id="img-name"></div>
+      </div>
+    </div>
+
+    <!-- cog -->
+    <div>
+      <div class="section-label"><span class="req-dot" id="dot-cog"></span>Map COG</div>
+      <div class="upload-zone" id="cog-zone">
+        <input type="file" id="cog-input" accept=".tif,.tiff"/>
+        <div class="icon">🗺</div>
+        <p>Drop COG or click to browse<br/><small>.tif / .tiff · georeferenced</small></p>
+        <div class="filename" id="cog-name"></div>
+      </div>
+      <div class="hint">The COG is the georeferenced basemap. Detections from the image are mapped onto it, so both must cover the same area.</div>
+    </div>
+
+    <!-- detection settings -->
+    <details class="settings" id="settings">
+      <summary><span>Detection Settings</span><span class="chev">›</span></summary>
+      <div class="settings-body">
+        <div class="field">
+          <label for="set-model">Model Size</label>
+          <select id="set-model">
+            <option value="n">Nano (n)</option>
+            <option value="s">Small (s)</option>
+            <option value="m" selected>Medium (m)</option>
+            <option value="l">Large (l)</option>
+            <option value="x">Extra Large (x)</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="set-slice">Slice size (px)</label>
+            <input type="number" id="set-slice" min="64" step="32" value="640"/>
+          </div>
+          <div class="field">
+            <label for="set-overlap">Overlap ratio</label>
+            <input type="number" id="set-overlap" min="0" max="0.9" step="0.05" value="0.2"/>
+          </div>
+        </div>
+        <div class="field">
+          <label for="set-classes">Target classes</label>
+          <select id="set-classes" multiple size="2"></select>
+          <div class="hint">Cmd/Ctrl-click to select. Default: boat + surfboard.</div>
+        </div>
+      </div>
+    </details>
+
+    <button class="btn btn-primary" id="run-btn" disabled>Run Detection</button>
+
+    <div id="status-card">
+      <div class="status-row">
+        <span class="section-label" style="margin:0">Status</span>
+        <span class="status-badge" id="status-badge">—</span>
+      </div>
+      <div class="progress-text" id="progress-text">—</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+    </div>
+
+    <div id="results-section">
+      <div class="divider"></div>
+      <div class="section-label" style="margin-top:4px;margin-bottom:12px">Detections</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="val" id="stat-boats">—</div><div class="lbl">Shown</div></div>
+        <div class="stat-box"><div class="val" id="stat-conf">—</div><div class="lbl">Avg Conf</div></div>
+      </div>
+
+      <!-- confidence filter slider -->
+      <div class="field" style="margin-bottom:14px">
+        <div class="slider-head">
+          <label style="margin:0">Min confidence</label>
+          <span class="val" id="conf-val">25%</span>
+        </div>
+        <input type="range" id="conf-slider" min="0" max="1" step="0.01" value="0.25"/>
+      </div>
+
+      <!-- layer controls -->
+      <div class="layer-controls">
+        <div class="toggle-row">
+          <span>Detection layer</span>
+          <label class="switch"><input type="checkbox" id="layer-toggle" checked/><span class="track"></span></label>
+        </div>
+        <div class="field" style="margin:0">
+          <div class="slider-head">
+            <label style="margin:0">Overlay opacity</label>
+            <span class="val" id="opacity-val">35%</span>
+          </div>
+          <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.35"/>
+        </div>
+      </div>
+
+      <div class="boatlist-section" id="boatlist-section">
+        <div class="boatlist-header" id="boatlist-toggle">
+          <span>Boat List <span class="count" id="boat-list-count">(0)</span></span>
+          <span class="chev">›</span>
+        </div>
+        <div class="boatlist-body">
+          <div class="list-controls">
+            <select id="sort-select">
+              <option value="conf-desc">Sort confidence (high to low)</option>
+              <option value="conf-asc">Sort confidence (low to high)</option>
+            </select>
+          </div>
+          <div id="boat-list"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <button class="btn btn-secondary" id="dl-geojson">Download GeoJSON</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="map-badge"><span id="badge-count">0</span> boats in view</div>
+</div>
+
+<script>
+// state
+let currentJob = null, pollTimer = null, geojsonLayer = null, tileLayer = null, geojsonUrl = null;
+let allFeatures = [];          // every detection returned by the backend
+let layerById   = {};          // feature id - leaflet layer (for current filtered set)
+let minConf     = 0.25;        // display slider value
+let layerOpacity = 0.35;       // overlay opacity slider value
+let layerVisible = true;
+
+const map = L.map('map', { zoomControl: false }).setView([20, 0], 3);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 22,
+}).addTo(map);
+
+// keep Leaflet's sizing correct when the layout flips between sidebar/stacked
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => map.invalidateSize(), 150);
+});
+
+// confidence - colour (red - yellow - green)
+function confColor(c) {
+  c = Math.max(0, Math.min(1, c));
+  let r, g;
+  if (c < 0.5) { r = 255; g = Math.round(510 * c); }
+  else         { r = Math.round(510 * (1 - c)); g = 255; }
+  return `rgb(${r},${g},0)`;
+}
+
+function styleFor(feature, hi = false) {
+  const col = confColor(feature.properties.confidence);
+  return {
+    color: col,
+    weight: hi ? 3 : 1.5,
+    opacity: Math.min(1, layerOpacity + 0.4),
+    fillColor: col,
+    fillOpacity: hi ? Math.min(1, layerOpacity + 0.3) : layerOpacity,
+  };
+}
+
+// legend control
+const legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function () {
+  const div = L.DomUtil.create('div', 'legend');
+  div.innerHTML = `
+    <div class="legend-title">Confidence</div>
+    <div class="legend-bar"></div>
+    <div class="legend-scale"><span>0</span><span>0.5</span><span>1.0</span></div>`;
+  return div;
+};
+
+// class picker population
+async function loadClasses() {
+  const sel = document.getElementById('set-classes');
+  try {
+    const res = await fetch('/api/classes');
+    const data = await res.json();
+    const defaults = new Set(data.default || ['boat', 'surfboard']);
+    sel.innerHTML = '';
+    (data.classes || []).forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (defaults.has(name)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    sel.innerHTML = '<option value="boat" selected>boat</option>'
+                  + '<option value="surfboard" selected>surfboard</option>';
+  }
+}
+loadClasses();
+
+// upload zones
+function wireZone(zoneId, inputId, nameId, dotId) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  const name = document.getElementById(nameId);
+  const dot  = document.getElementById(dotId);
+
+  function setFile(f) {
+    name.textContent = f.name;
+    zone.classList.add('filled');
+    dot.classList.add('ok');
+    checkRunnable();
+  }
+
+  input.addEventListener('change', () => { if (input.files[0]) setFile(input.files[0]); });
+  ['dragover','dragenter'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(e => zone.addEventListener(e, () => zone.classList.remove('drag')));
+  zone.addEventListener('drop', ev => {
+    ev.preventDefault();
+    const f = ev.dataTransfer.files[0];
+    if (f) { input.files = ev.dataTransfer.files; setFile(f); }
+  });
+}
+
+wireZone('img-zone', 'img-input', 'img-name', 'dot-img');
+wireZone('cog-zone', 'cog-input', 'cog-name', 'dot-cog');
+
+function checkRunnable() {
+  const imgReady = document.getElementById('img-input').files[0];
+  const cogReady = document.getElementById('cog-input').files[0];
+  document.getElementById('run-btn').disabled = !(imgReady && cogReady);
+}
+
+// run detection
+document.getElementById('run-btn').addEventListener('click', async () => {
+  document.getElementById('run-btn').disabled = true;
+  showStatus('queued', 'Uploading…');
+
+  try {
+    const fd = new FormData();
+    fd.append('image', document.getElementById('img-input').files[0]);
+    fd.append('cog',   document.getElementById('cog-input').files[0]);
+
+    // optional detection params (confidence floor is fixed at 0.10 on the backend)
+    fd.append('model_size', document.getElementById('set-model').value);
+    fd.append('slice_size', document.getElementById('set-slice').value);
+    fd.append('overlap',    document.getElementById('set-overlap').value);
+    const picked = Array.from(document.getElementById('set-classes').selectedOptions).map(o => o.value);
+    fd.append('classes', (picked.length ? picked : ['boat', 'surfboard']).join(','));
+
+    const res = await fetch('/api/detect', { method: 'POST', body: fd });
+    const txt = await res.text();
+    if (!txt) throw new Error('Empty response from server');
+
+    let data;
+    try { data = JSON.parse(txt); }
+    catch { throw new Error(`Bad JSON: ${txt.slice(0, 140)}`); }
+    if (!res.ok) throw new Error(data.detail || `Server error ${res.status}`);
+
+    currentJob = data.job_id;
+    loadTiles(data);
+    startPolling();
+  } catch (err) {
+    showStatus('error', err.message);
+    document.getElementById('run-btn').disabled = false;
+  }
+});
+
+function loadTiles(jobData) {
+  if (tileLayer) map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(`/tiles/${jobData.job_id}/{z}/{x}/{y}.png`, { maxZoom: 22, tileSize: 256, opacity: 1 }).addTo(map);
+  const m = jobData.meta;
+  if (m?.bounds) {
+    const [w, s, e, n] = m.bounds;
+    if (w !== e && s !== n) map.fitBounds([[s, w], [n, e]], { padding: [40, 40] });
+  }
+}
+
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/job/${currentJob}`);
+      const data = JSON.parse(await res.text());
+      handleJobUpdate(data);
+    } catch (e) { console.warn('poll error', e); }
+  }, 1500);
+}
+
+function handleJobUpdate(data) {
+  showStatus(data.status, data.progress || data.error || '', data);
+  if (data.status === 'done') {
+    clearInterval(pollTimer);
+    geojsonUrl = data.geojson_url;
+    loadGeojson(data.geojson_url);
+    document.getElementById('run-btn').disabled = false;
+  }
+  if (data.status === 'error') {
+    clearInterval(pollTimer);
+    console.error(data.trace);
+    document.getElementById('run-btn').disabled = false;
+  }
+}
+
+// load + render detections
+async function loadGeojson(url) {
+  const res = await fetch(url);
+  const gj = await res.json();
+  allFeatures = gj.features || [];
+
+  document.getElementById('results-section').classList.add('visible');
+  document.getElementById('map-badge').classList.add('visible');
+  if (!map._legendAdded) { legend.addTo(map); map._legendAdded = true; }
+
+  renderFiltered({ fit: true });
+  map.off('moveend', updateBadge);
+  map.on('moveend', updateBadge);
+}
+
+// rebuild the map layer
+function renderFiltered(opts = {}) {
+  const sortMode = document.getElementById('sort-select').value;
+  let feats = allFeatures.filter(f => f.properties.confidence >= minConf);
+  feats.sort((a, b) => sortMode === 'conf-asc'
+    ? a.properties.confidence - b.properties.confidence
+    : b.properties.confidence - a.properties.confidence);
+
+  // rebuild map layer
+  if (geojsonLayer) map.removeLayer(geojsonLayer);
+  layerById = {};
+  geojsonLayer = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
+    style: f => styleFor(f),
+    onEachFeature(feature, layer) {
+      const p = feature.properties;
+      layerById[p.id] = layer;
+      layer.bindPopup(`
+        <div class="popup-inner">
+          <div class="popup-title">🚢 ${p.class || 'Boat'} #${p.id}</div>
+          <table>
+            <tr><td>Class</td><td>${p.class}</td></tr>
+            <tr><td>Confidence</td><td>${p.confidence_pct || (p.confidence*100).toFixed(1)+'%'}</td></tr>
+          </table>
+        </div>`, { maxWidth: 240 });
+      layer.on('mouseover', () => setHighlight(p.id, true,  false));
+      layer.on('mouseout',  () => setHighlight(p.id, false, false));
+      layer.on('click',     () => highlightBoatItem(p.id));
+    },
+  });
+  if (layerVisible) geojsonLayer.addTo(map);
+
+  renderBoatList(feats);
+  updateStats(feats);
+
+  if (opts.fit) {
+    const b = geojsonLayer.getBounds();
+    if (b.isValid()) map.fitBounds(b, { padding: [60, 60], maxZoom: 19 });
+  }
+  updateBadge();
+}
+
+function updateStats(feats) {
+  document.getElementById('stat-boats').textContent = feats.length;
+  document.getElementById('boat-list-count').textContent = `(${feats.length})`;
+  const avg = feats.length
+    ? (feats.reduce((s, f) => s + f.properties.confidence, 0) / feats.length * 100).toFixed(0) + '%'
+    : '—';
+  document.getElementById('stat-conf').textContent = avg;
+}
+
+// collapsible boat-list section (default expanded)
+document.getElementById('boatlist-toggle').addEventListener('click', () => {
+  document.getElementById('boatlist-section').classList.toggle('collapsed');
+});
+
+function updateBadge() {
+  if (!geojsonLayer) return;
+  const bounds = map.getBounds();
+  let n = 0;
+  geojsonLayer.eachLayer(l => { if (l.getBounds && bounds.intersects(l.getBounds())) n++; });
+  document.getElementById('badge-count').textContent = n;
+}
+
+function renderBoatList(feats) {
+  const list = document.getElementById('boat-list');
+  list.innerHTML = '';
+  feats.forEach(f => {
+    const p = f.properties;
+    const col = confColor(p.confidence);
+    const item = document.createElement('div');
+    item.className = 'boat-item';
+    item.dataset.id = p.id;
+    item.innerHTML = `
+      <span class="boat-id"><span class="swatch" style="background:${col}"></span>#${p.id}<span class="boat-cls">${p.class}</span></span>
+      <span class="conf">${p.confidence_pct || (p.confidence*100).toFixed(1)+'%'}</span>`;
+    item.addEventListener('click',     () => { zoomToFeature(f); highlightBoatItem(p.id); });
+    item.addEventListener('mouseenter', () => setHighlight(p.id, true,  true));
+    item.addEventListener('mouseleave', () => setHighlight(p.id, false, true));
+    list.appendChild(item);
+  });
+}
+
+// hover sync: highlight a polygon + its list row together.
+// fromList=true means the hover started on the list (so as not to retouch the list class redundantly).
+function setHighlight(id, on, fromList) {
+  const layer = layerById[id];
+  if (layer) {
+    if (on) layer.setStyle(styleFor(layer.feature, true));
+    else    geojsonLayer.resetStyle(layer);
+  }
+  const row = document.querySelector(`.boat-item[data-id="${id}"]`);
+  if (row) row.classList.toggle('active', on);
+}
+
+function highlightBoatItem(id) {
+  document.querySelectorAll('.boat-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+  const row = document.querySelector(`.boat-item[data-id="${id}"]`);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+function zoomToFeature(feature) {
+  const l = layerById[feature.properties.id];
+  if (l) {
+    if (l.getBounds) map.fitBounds(l.getBounds(), { maxZoom: 19, padding: [60, 60] });
+    l.openPopup();
+  }
+}
+
+// controls: confidence slider, sort, opacity, toggle
+const confSlider = document.getElementById('conf-slider');
+confSlider.addEventListener('input', () => {
+  minConf = parseFloat(confSlider.value);
+  document.getElementById('conf-val').textContent = Math.round(minConf * 100) + '%';
+  renderFiltered();
+});
+
+document.getElementById('sort-select').addEventListener('change', () => renderFiltered());
+
+const opacitySlider = document.getElementById('opacity-slider');
+opacitySlider.addEventListener('input', () => {
+  layerOpacity = parseFloat(opacitySlider.value);
+  document.getElementById('opacity-val').textContent = Math.round(layerOpacity * 100) + '%';
+  if (geojsonLayer) geojsonLayer.setStyle(f => styleFor(f));
+});
+
+document.getElementById('layer-toggle').addEventListener('change', e => {
+  layerVisible = e.target.checked;
+  if (!geojsonLayer) return;
+  if (layerVisible) geojsonLayer.addTo(map);
+  else              map.removeLayer(geojsonLayer);
+});
+
+// status display
+function showStatus(status, text, data) {
+  const card = document.getElementById('status-card');
+  card.classList.add('visible');
+  document.getElementById('status-badge').className = `status-badge ${status}`;
+  document.getElementById('status-badge').textContent = status.toUpperCase();
+  document.getElementById('progress-text').textContent = text;
+  const bar = document.getElementById('progress-bar');
+
+  // real per-slice progress when available
+  if (status === 'running' && data && data.slice_total) {
+    const pct = Math.max(2, Math.min(100, (data.slice_current / data.slice_total) * 100));
+    bar.classList.remove('indeterminate');
+    bar.style.width = pct + '%';
+  } else {
+    bar.classList.toggle('indeterminate', status === 'running' || status === 'queued');
+  }
+  if (status === 'done')  { bar.classList.remove('indeterminate'); bar.style.width = '100%'; }
+  if (status === 'error') { bar.classList.remove('indeterminate'); bar.style.width = '0%'; }
+}
+
+// exports
+function download(url, filename) {
+  const a = document.createElement('a');
+  a.href = url; a.download = filename || ''; a.click();
+}
+document.getElementById('dl-geojson').addEventListener('click', () => {
+  if (geojsonUrl) download(geojsonUrl, `boats_${currentJob}.geojson`);
+});
+</script>
+</body>
+</html>
