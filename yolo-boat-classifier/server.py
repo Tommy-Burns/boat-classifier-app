@@ -45,7 +45,7 @@ app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 
 jobs: dict[str, dict] = {}
 
-# Detection defaults. `confidence` is a fixed detection FLOOR (not user-tunable):
+# Detection defaults. `confidence` is a fixed detection baseline:
 # the model returns every detection at/above 0.10 and the frontend slider handles
 # user-side filtering after detection.
 DEFAULT_PARAMS = {
@@ -121,9 +121,8 @@ def run_detection(inference_path: str, cog_path: str, job_id: str, params: dict 
     then mapped to geographic coordinates via the COG transform, and finally
     reprojected to EPSG:4326 for Leaflet.
 
-    `params` (all optional, defaults preserve the original behaviour at display
-    time — see DEFAULT_PARAMS):
-      * confidence – detection FLOOR. We run at a low floor and return EVERY
+    `params` (all optional, defaults preserve the original behaviour displayed on the frontend — see DEFAULT_PARAMS):
+      * confidence – detection baseline. We run at a low baseline and return EVERY
         detection at/above it so the frontend can re-filter client-side with a
         slider without re-running the model.
       * slice_size – SAHI slice height/width in px.
@@ -369,8 +368,7 @@ async def detect(
       * image - run detection on this
       * cog   - georeferenced basemap; also used to place detections on the map
 
-    Optional form fields tune detection; omit them to keep the original behaviour.
-    The detection floor (confidence) is fixed at DEFAULT_PARAMS["confidence"] — the
+    The detection baseline (confidence) is fixed at DEFAULT_PARAMS["confidence"] — the
     frontend confidence slider does user-side filtering after detection.
     """
     job_id = str(uuid.uuid4())[:8]

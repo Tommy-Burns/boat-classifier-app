@@ -18,7 +18,7 @@ This is the official repository for the **BOAT CLASSIFIER APP** developed by **T
 ```
 
 - The annotator tool was intended to be used for creating segments with extra fields so that we use it to fine tune the YOLO models to perform our semantic segmentation. But the YOLO model we fine-tuned with our segments did not work, it detected almost no boats. We believe it is due to the fact that we could not get many labels from the image to fine-tune. And so we discarded the annotator app.
-- The colab notebooks folder contains the Google Colab notebooks where we experimented the methods before translating the best approach into the final app. They have been converted to regular Python files because huggingface tokens were being committed even after deleting them from the code cells.
+- The colab notebooks folder contains the Google Colab notebooks where we experimented the methods before translating the best approach into the final app. They have been converted to regular Python files because huggingface tokens were being committed even after deleting them from the code cells. A description of the files are found in the [**`README file`**](https://github.com/Tommy-Burns/boat-classifier-app/blob/main/colab_notebooks/README.md)  in the same directory.
 - yolo-boat-classifier is the final app and has been referred in the rest of this document as "the app".
 
 # About the app
