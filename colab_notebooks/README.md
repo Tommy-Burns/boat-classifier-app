@@ -10,7 +10,8 @@ The second half turns the masks into GeoJSON. `rasterio.open` checks whether the
 
 ## `sam3.py`
 
-This uses the SAM3 model and without any fine-tuning, runs inference on the image. `SAM3SemanticPredictor` allows to query [`boat`, `ship`, `vessel`, `watercraft`, `a boat on water`] from the predictions.
+This uses the SAM3 ([**Segment Anything Model from Meta**](https://ai.meta.com/research/sam3/)) model and without any fine-tuning, runs inference on the image. `SAM3SemanticPredictor` allows to query [`boat`, `ship`, `vessel`, `watercraft`, `a boat on water`] from the predictions.  
+SAM3 was better at detecting than YOLO but we could not use it because the [**SAHI Python package**](https://obss.github.io/sahi/) does not support SAM models. It only supports YOLO models.
 
 ## `yolo_test.py`
 
@@ -19,7 +20,7 @@ It was not used because the output was detecting very little to no boats. We bel
 It has a:
 - `geojson_to_yolo` which converts the geojson fields into YOLO labels.
 - `finetune_yolo` which then trains from the output of the `geojson_to_yolo` function.
-- `sliding_window_detect` function which was intended to perform a sliding window detection just like <a target="_blank" href="https://obss.github.io/sahi/"><b>SAHI (Slicing Aided Hyper Inference)</b></a> does.
+- `sliding_window_detect` function which was intended to perform a sliding window detection just like [**SAHI (Slicing Aided Hyper Inference)**](https://obss.github.io/sahi/) does.
 
 ## `random_forest.py`
 

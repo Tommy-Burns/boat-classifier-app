@@ -26,7 +26,7 @@ This is the official repository for the **BOAT CLASSIFIER APP** developed by **T
 Detect boats in high-resolution aerial / satellite imagery and view them as a
 georeferenced overlay on an interactive map.
 
-The app runs <a target="_blank" href="https://obss.github.io/sahi/"><b>SAHI (Slicing Aided Hyper Inference)</b></a> over a YOLO segmentation model,
+The app runs [**SAHI (Slicing Aided Hyper Inference)**](https://obss.github.io/sahi/) over a YOLO segmentation model,
 converts the detected boat masks into polygons, georeferences them, and serves the result as a GeoJSON overlay
 on a Leaflet map. A COG of the same image is streamed to the map as XYZ tiles by a small
 built-in tile server.
